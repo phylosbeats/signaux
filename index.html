@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signaux aléatoires</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            transition: background-color 0.1s;
+        }
+
+        /* Le bouton Lancer */
+        #start-btn {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            background-color: transparent;
+            color: white;
+            border: 2px solid white;
+            border-radius: 5px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+        }
+
+        #start-btn:hover {
+            background-color: white;
+            color: black;
+        }
+
+        #start-btn.hidden {
+            display: none;
+        }
+
+        /* Le Timer discret */
+        #timer {
+            position: absolute;
+            bottom: 20px;
+            color: #333; /* Gris très foncé pour être discret */
+            font-size: 1rem;
+            font-family: monospace;
+        }
+
+        /* Animation de clignotement (Flash) */
+        @keyframes flashAnim {
+            0% { background-color: black; }
+            50% { background-color: white; }
+            100% { background-color: black; }
+        }
+
+        .flashing {
+            /* Clignote 3 fois, chaque clignotement dure 0.2s */
+            animation: flashAnim 0.2s linear 3;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="start-btn">Lancer</button>
+    <div id="timer">02:00</div>
+
+    <script>
+        const startBtn = document.getElementById('start-btn');
+        const timerDisplay = document.getElementById('timer');
+        const body = document.body;
+
+        let countdownInterval;
+        let eventTimeout;
+        let audioCtx;
+        const DURATION = 120; // 2 minutes en secondes
+
+        // Initialisation du contexte audio (pour le bip)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Fonction pour jouer un Bip
+        function playBeep() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Fréquence en Hz
+            
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volume bas
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.15); // Durée du bip
+        }
+
+        // Fonction pour faire clignoter l'écran
+        function triggerFlash() {
+            body.classList.remove('flashing');
+            void body.offsetWidth; // Hack pour redémarrer l'animation CSS si besoin
+            body.classList.add('flashing');
+            
+            // Retirer la classe après l'animation (3 * 0.2s = 0.6s)
+            setTimeout(() => {
+                body.classList.remove('flashing');
+            }, 400);
+        }
+
+        // Logique des événements aléatoires
+        function scheduleNextEvent(timeLeft) {
+            if (timeLeft <= 0) return;
+
+            // Délai aléatoire entre 3 et 12 secondes pour le prochain événement
+            const delay = (Math.random() * 5000) + 2000; 
+
+            eventTimeout = setTimeout(() => {
+                if (currentSeconds <= 0) return; // Ne rien faire si le temps est fini
+
+                // Choix aléatoire de l'événement
+                // 0 = Flash, 1 = Bip, 2 = Les deux
+                const type = Math.floor(Math.random() * 3);
+
+                if (type === 0) {
+                    triggerFlash();
+                } else if (type === 1) {
+                    playBeep();
+                } else {
+                    triggerFlash();
+                    playBeep();
+                }
+
+                // Planifier le suivant
+                scheduleNextEvent(currentSeconds);
+
+            }, delay);
+        }
+
+        let currentSeconds = DURATION;
+
+        function updateTimer() {
+            const minutes = Math.floor(currentSeconds / 60);
+            const seconds = currentSeconds % 60;
+            timerDisplay.textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            if (currentSeconds <= 0) {
+                stopExperiment();
+            } else {
+                currentSeconds--;
+            }
+        }
+
+        function startExperiment() {
+            initAudio(); // Important pour débloquer l'audio sur les navigateurs
+            startBtn.classList.add('hidden');
+            currentSeconds = DURATION;
+            updateTimer(); // Mise à jour immédiate
+
+            // Lancer le compte à rebours
+            countdownInterval = setInterval(updateTimer, 1000);
+
+            // Lancer la boucle d'événements aléatoires
+            scheduleNextEvent(currentSeconds);
+        }
+
+        function stopExperiment() {
+            clearInterval(countdownInterval);
+            clearTimeout(eventTimeout);
+            
+            startBtn.classList.remove('hidden');
+            startBtn.textContent = "RELANCER";
+            timerDisplay.textContent = "00:00";
+            body.classList.remove('flashing'); // Nettoyage au cas où
+        }
+
+        startBtn.addEventListener('click', startExperiment);
+
+    </script>
+</body>
+</html>
